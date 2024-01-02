@@ -1,14 +1,16 @@
 #pragma once
+#include <rapidxml/rapidxml.hpp>
 #include <string>
 #include <vector>
 
-#include "Project.h"
+#include "fileParser.h"
 
-class vsProject : public Project
+class vsProject : public fileParser
 {
 public:
 	vsProject();
 	vsProject(std::string name, std::string path);
+	vsProject(const vsProject& other);
 	~vsProject() override;
 
 	[[nodiscard]]
@@ -16,9 +18,24 @@ public:
 private:
 	std::string _name;
 	std::string _path;
+	rapidxml::xml_document<> _doc;
+
+	std::vector<std::string> _files;
+	bool _isVcpkgEnabled;
+	std::string _precompiledHeaderFile;
+	std::string _languageStandard;
+	std::string _outputType;
+	std::vector<std::string> _includeDirs;
+
+    void parseFiles();
+	void parseVcpkgInfo();
+	void parsePrecompiledHeader();
+	void parseLanguageStandard();
+	void parseOutputType();
+	void parseIncludeDirectories();
 };
 
-class vsSolution : public Project
+class vsSolution : public fileParser
 {
 public:
 	vsSolution();

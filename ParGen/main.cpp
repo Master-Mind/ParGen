@@ -42,20 +42,14 @@ int main(int argc, const char *argv[])
 
 	for (auto& file : fileNames)
 	{
-		if (file.extension() == ".vcxproj")
-		{
-			vsProject proj;
-			assert(proj.parse(file.string().c_str()));
-		}
-		else if (file.extension() == ".sln")
-		{
-			vsSolution sln;
-			assert(sln.parse(file.string().c_str()));
-		}
-		else
+		fileParser *par = createParser(file.string().c_str());
+
+		if (par == nullptr)
 		{
 			std::cout << "Unknown file type: " << file.string() << std::endl;
-		}	
+		}
+
+		assert(par->parse(file.string().c_str()));
 	}
 
 	return 0;
