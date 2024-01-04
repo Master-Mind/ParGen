@@ -4,10 +4,11 @@
 #include <print>
 #include <clang-c/Index.h>
 
-// Forward declaration of the AST visitor function
+// Forward declaration of the AST visitor functions
 CXChildVisitResult dumper(CXCursor cursor, CXCursor parent, CXClientData clientData);
+CXChildVisitResult injaConverter(CXCursor cursor, CXCursor parent, CXClientData clientData);
 
-void dumpAST(const std::string& filename) {
+void parseInternal(const std::string& filename) {
     // Create an index
     CXIndex index = clang_createIndex(0, 0);
 
@@ -58,7 +59,7 @@ bool cppParser::parse(const char* projPath)
 {
 	std::print("Parsing file: {}\n", projPath);
 
-    dumpAST(projPath);
+    parseInternal(projPath);
 
 	return true;
 }

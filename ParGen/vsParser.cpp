@@ -38,6 +38,8 @@ bool vsProject::parse(const char* projPath)
 	    projPath = _path.c_str();
 	}
 
+	assert(std::filesystem::exists(projPath));
+
 	std::print("Parsing project: {}\n", projPath);
 
 	size_t fsize = std::filesystem::file_size(projPath);

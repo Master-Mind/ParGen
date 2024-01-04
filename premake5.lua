@@ -22,7 +22,7 @@ project "ParGen"
 	language "C++"
 	kind "ConsoleApp"
 	location "./ParGen"
-	files {"./ParGen/**.h", "./ParGen/**.cpp" }
+	files {"./ParGen/*.h", "./ParGen/*.cpp" }
 	flags { "MultiProcessorCompile" }
 	includedirs { "./Clang/include" }
 	links { "libclang" }
@@ -35,5 +35,5 @@ project "Test"
 	language "C++"
 	kind "ConsoleApp"
 	location "./Test"
-	files {"./Test/**.h", "./Test/**.cpp" }
+	files {"./Test/*.h", "./Test/*.cpp" }
 	flags { "MultiProcessorCompile" }

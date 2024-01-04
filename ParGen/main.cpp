@@ -48,7 +48,7 @@ int main(int argc, const char *argv[])
 		{
 			std::cout << "Unknown file type: " << file.string() << std::endl;
 		}
-
+		
 		assert(par->parse(file.string().c_str()));
 	}
 
