@@ -1,5 +1,7 @@
 # ParGen
 
+Have you ever stood on the ocean shore, with the sand between your toes and the sea breeze against your face, and wondered to yourself: "What if the word 'template' was even more overloaded?" If so, then look no further.
+
 This is a project which uses [libclang](https://github.com/llvm/llvm-project) to parse c++ files and feed that information into [Ijna](https://github.com/pantor/inja). The intention is to use templates to generate c++ boilerplate, but in theory it can be used to generate any kind of file.
 
 ## Motivation

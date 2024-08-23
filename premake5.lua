@@ -26,6 +26,7 @@ project "ParGen"
 	flags { "MultiProcessorCompile" }
 	includedirs { "./Clang/include" }
 	links { "libclang" }
+	debugargs { "--files", "../Test/Test.vcxproj" }
 	filter "configurations:Debug"
 		libdirs { "./Clang/Lib/Debug" }
 	filter "configurations:Release"
