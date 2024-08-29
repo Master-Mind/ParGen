@@ -1,11 +1,16 @@
 #pragma once
 #include "fileParser.h"
 #include <inja/inja.hpp>
-class cppParser : public fileParser
+
+class cppParser
 {
 public:
-	[[nodiscard]] bool parse(const char* projPath) override;
+	cppParser(std::filesystem::path &&path,
+		bool isVcpkgEnabled = false, 
+		std::string&& languageStandard = "c++23");
+	[[nodiscard]] bool parse(inja::json &outdata);
+
 private:
-	inja::json _data;
+	std::filesystem::path _path;
 };
 

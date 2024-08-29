@@ -5,42 +5,103 @@
 #include <fstream>
 #include <print>
 #include <string>
+#include <rapidxml/rapidxml.hpp>
 
-vsProject::vsProject()
+void parseFiles(const rapidxml::xml_document<>& doc, std::vector<cppParser>& outfiles, const std::filesystem::path& projPath)
 {
-}
-
-vsProject::vsProject(std::string name, std::string path) : _name(name), _path(path)
-{
-	
-}
-
-vsProject::vsProject(const vsProject& other)
-{
-	_name = other._name;
-	_path = other._path;
-	_files = other._files;
-	_isVcpkgEnabled = other._isVcpkgEnabled;
-	_precompiledHeaderFile = other._precompiledHeaderFile;
-	_languageStandard = other._languageStandard;
-	_outputType = other._outputType;
-	_includeDirs = other._includeDirs;
-}
-
-vsProject::~vsProject()
-{
-}
-
-bool vsProject::parse(const char* projPath)
-{
-    if (projPath == nullptr)
-    {
-	    projPath = _path.c_str();
+	for (auto itemGroup = doc.first_node("Project")->first_node("ItemGroup");
+		itemGroup;
+		itemGroup = itemGroup->next_sibling("ItemGroup"))
+	{
+		for (auto clCompile = itemGroup->first_node("ClCompile");
+			clCompile;
+			clCompile = clCompile->next_sibling("ClCompile"))
+		{
+			outfiles.push_back(cppParser(projPath / clCompile->first_attribute("Include")->value()));
+		}
 	}
+}
 
+void parseVcpkgInfo(const rapidxml::xml_document<>& doc, bool& isVcpkgEnabled)
+{
+	for (auto propertyGroup = doc.first_node("Project")->first_node("PropertyGroup");
+		propertyGroup;
+		propertyGroup = propertyGroup->next_sibling("PropertyGroup"))
+	{
+		auto label = propertyGroup->first_attribute("Label");
+		if (label && strstr(label->value(), "Vcpkg"))
+		{
+			//VcpkgEnabled defaults to true if it doesn't exist
+			auto vcpkgEnabled = propertyGroup->first_node("VcpkgEnabled");
+			isVcpkgEnabled = vcpkgEnabled ? strstr(vcpkgEnabled->value(), "true") : true;
+			return;
+		}
+	}
+}
+
+void parsePrecompiledHeader()
+{
+	//for (auto& itemDefinitionGroup : _doc.child("Project").children("ItemDefinitionGroup")) {
+	//	auto pchNode = itemDefinitionGroup.child("ClCompile").child("PrecompiledHeader");
+	//	if (pchNode) {
+	//		_precompiledHeaderFile = pchNode.child_value();
+	//		break;
+	//	}
+	//}
+}
+
+void parseLanguageStandard(const rapidxml::xml_document<>& doc, std::string &languageStandard)
+{
+	for (auto propertyGroup = doc.first_node("Project")->first_node("ItemDefinitionGroup");
+		propertyGroup;
+		propertyGroup = propertyGroup->next_sibling("ItemDefinitionGroup"))
+	{
+		auto clCompile = propertyGroup->first_node("ClCompile");
+
+		if (clCompile)
+		{
+			auto langStdNode = clCompile->first_node("LanguageStandard");
+
+			if (langStdNode)
+			{
+				languageStandard = langStdNode->value();
+				break;
+			}
+		}
+	}
+}
+
+void parseOutputType(const rapidxml::xml_document<>& doc, std::string& outputType)
+{
+	for (auto propertyGroup = doc.first_node("Project")->first_node("PropertyGroup");
+		propertyGroup;
+		propertyGroup = propertyGroup->next_sibling("PropertyGroup"))
+	{
+		auto config = propertyGroup->first_node("ConfigurationType");
+		if (config)
+		{
+			outputType = config->value();
+			return;
+		}
+	}
+}
+
+void parseIncludeDirectories()
+{
+	//for (auto& itemDefinitionGroup : _doc.child("Project").children("ItemDefinitionGroup")) {
+	//	for (auto& clCompile : itemDefinitionGroup.children("ClCompile")) {
+	//		for (auto& includeDir : clCompile.children("AdditionalIncludeDirectories")) {
+	//			_includeDirs.push_back(includeDir.child_value());
+	//		}
+	//	}
+	//}
+}
+
+bool parseVCProj(std::filesystem::path& projPath, std::vector<cppParser>& outfiles)
+{
 	assert(std::filesystem::exists(projPath));
 
-	std::print("Parsing project: {}\n", projPath);
+	std::print("Parsing project: {}\n", projPath.string().c_str());
 
 	size_t fsize = std::filesystem::file_size(projPath);
 
@@ -62,132 +123,27 @@ bool vsProject::parse(const char* projPath)
 	char *truefiledata = strchr(filedata, '<');
 	*(strrchr(truefiledata, '>') + 1) = '\0';
 
-	_doc.parse<0>(truefiledata);
+	rapidxml::xml_document<> doc;
 
-	parseFiles();
-	parseVcpkgInfo();
+	doc.parse<0>(truefiledata);
+
+	bool isVcpkgEnabled = false;
+	std::string languageStandard;
+	std::string outputType;
+
+	parseFiles(doc, outfiles, projPath.parent_path());
+	parseVcpkgInfo(doc, isVcpkgEnabled);
 	parsePrecompiledHeader();
-	parseLanguageStandard();
-	parseOutputType();
+	parseLanguageStandard(doc, languageStandard);
+	parseOutputType(doc, outputType);
 	parseIncludeDirectories();
-
-	for (auto& file : _files)
-	{
-		auto path = std::filesystem::path(projPath).parent_path() / file;
-		fileParser *par = createParser(path.string().c_str());
-
-		if (!par)
-		{
-			return false;
-		}
-
-		assert(par->parse(path.string().c_str()));
-	}
 
     return true;
 }
 
-void vsProject::parseFiles()
+bool parseSolution(std::filesystem::path& slnPath, std::vector<cppParser>& outfiles)
 {
-	for (auto itemGroup = _doc.first_node("Project")->first_node("ItemGroup"); 
-		itemGroup; 
-		itemGroup = itemGroup->next_sibling("ItemGroup"))
-	{
-		for (auto clCompile = itemGroup->first_node("ClCompile");
-			clCompile;
-			clCompile = clCompile->next_sibling("ClCompile"))
-		{
-			_files.push_back(clCompile->first_attribute("Include")->value());
-		}
-	}
-}
-
-void vsProject::parseVcpkgInfo()
-{
-	for (auto propertyGroup = _doc.first_node("Project")->first_node("PropertyGroup");
-		propertyGroup;
-		propertyGroup = propertyGroup->next_sibling("PropertyGroup"))
-	{
-		auto label = propertyGroup->first_attribute("Label");
-		if (label && strstr(label->value(), "Vcpkg"))
-		{
-			//VcpkgEnabled defaults to true if it doesn't exist
-			auto vcpkgEnabled = propertyGroup->first_node("VcpkgEnabled");
-			_isVcpkgEnabled = vcpkgEnabled ? strstr(vcpkgEnabled->value(), "true") : true;
-			return;
-		}
-	}	
-}
-
-void vsProject::parsePrecompiledHeader()
-{
-	//for (auto& itemDefinitionGroup : _doc.child("Project").children("ItemDefinitionGroup")) {
-	//	auto pchNode = itemDefinitionGroup.child("ClCompile").child("PrecompiledHeader");
-	//	if (pchNode) {
-	//		_precompiledHeaderFile = pchNode.child_value();
-	//		break;
-	//	}
-	//}
-}
-
-void vsProject::parseLanguageStandard()
-{
-	for (auto propertyGroup = _doc.first_node("Project")->first_node("ItemDefinitionGroup");
-		propertyGroup;
-		propertyGroup = propertyGroup->next_sibling("ItemDefinitionGroup")) 
-	{
-		auto clCompile = propertyGroup->first_node("ClCompile");
-
-		if (clCompile)
-		{
-			auto langStdNode = clCompile->first_node("LanguageStandard");
-
-			if (langStdNode)
-			{
-				_languageStandard = langStdNode->value();
-				break;
-			}
-		}
-	}
-}
-
-void vsProject::parseOutputType()
-{
-	for(auto propertyGroup = _doc.first_node("Project")->first_node("PropertyGroup");
-		propertyGroup; 
-		propertyGroup = propertyGroup->next_sibling("PropertyGroup"))
-	{
-		auto config = propertyGroup->first_node("ConfigurationType");
-		if (config)
-		{
-			_outputType = config->value();
-			return;
-		}
-	}
-}
-
-void vsProject::parseIncludeDirectories()
-{
-	//for (auto& itemDefinitionGroup : _doc.child("Project").children("ItemDefinitionGroup")) {
-	//	for (auto& clCompile : itemDefinitionGroup.children("ClCompile")) {
-	//		for (auto& includeDir : clCompile.children("AdditionalIncludeDirectories")) {
-	//			_includeDirs.push_back(includeDir.child_value());
-	//		}
-	//	}
-	//}
-}
-
-vsSolution::vsSolution()
-{
-}
-
-vsSolution::~vsSolution()
-{
-}
-
-bool vsSolution::parse(const char* slnPath)
-{
-	std::print("Parsing solution: {}\n", slnPath);
+	std::print("Parsing solution: {}\n", slnPath.string().c_str());
     std::ifstream file(slnPath);
 
     if (!file.is_open()) {
@@ -198,6 +154,7 @@ bool vsSolution::parse(const char* slnPath)
     std::string line;
     std::string name, path, guid;
     std::size_t pos = 0;
+	std::vector<std::filesystem::path> projPaths;
 
     while (std::getline(file, line))
     {
@@ -213,13 +170,13 @@ bool vsSolution::parse(const char* slnPath)
 			path = line.substr(pos + 1, line.find("\",", pos + 1) - pos - 1);
 
 			//add the project to the list
-			projects.emplace_back(name, path);
+			projPaths.push_back(path);
 		}
     }
 
-	for (auto& proj : projects)
+	for (auto& proj : projPaths)
 	{
-		if (!proj.parse())
+		if (!parseVCProj(proj, outfiles))
 		{
 			return false;
 		}
@@ -227,3 +184,4 @@ bool vsSolution::parse(const char* slnPath)
 
     return true;
 }
+

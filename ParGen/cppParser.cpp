@@ -8,14 +8,14 @@
 CXChildVisitResult dumper(CXCursor cursor, CXCursor parent, CXClientData clientData);
 CXChildVisitResult injaConverter(CXCursor cursor, CXCursor parent, CXClientData clientData);
 
-void parseInternal(const std::string& filename, inja::json &data) {
+void parseInternal(const std::filesystem::path& filename, inja::json &data) {
     // Create an index
     CXIndex index = clang_createIndex(0, 0);
 
     // Parse the source file and create a translation unit
     CXTranslationUnit unit = clang_parseTranslationUnit(
         index,
-        filename.c_str(),
+        filename.string().c_str(),
         nullptr, 0,
         nullptr, 0,
         CXTranslationUnit_SkipFunctionBodies | CXTranslationUnit_KeepGoing // Skip function bodies
@@ -65,56 +65,67 @@ CXChildVisitResult injaConverter(CXCursor cursor, CXCursor parent, CXClientData 
     inja::json& data = *static_cast<inja::json*>(clientData);
 	// Get the kind of the cursor
     CXCursorKind kind = clang_getCursorKind(cursor);
-    //clang_getCursor
+    
+	CXString usr = clang_getCursorUSR(cursor);
     // Get the spelling of the cursor
     CXString spelling = clang_getCursorSpelling(cursor);
     CXString kindSpelling = clang_getCursorKindSpelling(kind);
     CXString resultTypeSpelling = clang_getTypeSpelling(clang_getCursorResultType(cursor));
     CXString typeSpelling = clang_getTypeSpelling(clang_getCursorType(cursor));
 
+    if (!CXStrNullOrEmpty(spelling))
+    {
+        data[clang_getCString(usr)]["spelling"] = clang_getCString(spelling);
+    }
+
     if (!CXStrNullOrEmpty(resultTypeSpelling))
     {
-        data[clang_getCString(spelling)]["result_type"] = clang_getCString(resultTypeSpelling);
+        data[clang_getCString(usr)]["result_type"] = clang_getCString(resultTypeSpelling);
     }
 
     if (!CXStrNullOrEmpty(kindSpelling))
     {
-        data[clang_getCString(spelling)]["kind"] = clang_getCString(kindSpelling);
+        data[clang_getCString(usr)]["kind"] = clang_getCString(kindSpelling);
     }
 
     if (!CXStrNullOrEmpty(typeSpelling))
     {
-        data[clang_getCString(spelling)]["type"] = clang_getCString(typeSpelling);
+        data[clang_getCString(usr)]["type"] = clang_getCString(typeSpelling);
     }
 
     clang_disposeString(resultTypeSpelling);
     clang_disposeString(kindSpelling);
     clang_disposeString(typeSpelling);
+    clang_disposeString(spelling);
     
     //recurse
     clang_visitChildren(
         cursor,
         injaConverter,
-        &data[clang_getCString(spelling)]["children"]
+        &data[clang_getCString(usr)]["children"]
     );
 
-    if (data[clang_getCString(spelling)]["children"].empty())
+    if (data[clang_getCString(usr)]["children"].empty())
     {
         //"destroy the child, kill them all" - Alex Jones
-        data[clang_getCString(spelling)].erase("children");
+        data[clang_getCString(usr)].erase("children");
     }
 
-    clang_disposeString(spelling);
+    clang_disposeString(usr);
 
     // Visit the siblings of this cursor
     return CXChildVisit_Continue;
 }
 
-bool cppParser::parse(const char* projPath)
+bool cppParser::parse(inja::json& outdata)
 {
-	std::print("Parsing file: {}\n", projPath);
+	std::print("Parsing file: {}\n", _path.string().c_str());
 
-    parseInternal(projPath, _data);
-    std::cout << _data.dump(4, ' ') << std::endl;
+    parseInternal(_path, outdata);
+
 	return true;
+}
+
+cppParser::cppParser(std::filesystem::path&& path, bool isVcpkgEnabled, std::string&& languageStandard) : _path(path)
+{
 }

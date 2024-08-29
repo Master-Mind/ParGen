@@ -4,6 +4,8 @@
 #include <print>
 #include <clang-c/Index.h>
 #include <argparse/argparse.hpp>
+
+#include "cppParser.h"
 #include "vsParser.h"
 
 int main(int argc, const char *argv[])
@@ -40,17 +42,34 @@ int main(int argc, const char *argv[])
 		pos = newpos + 1;
 	} while (pos != std::string::npos + 1); //yes, it's an overflow, and no, I don't care
 
-	for (auto& file : fileNames)
-	{
-		fileParser *par = createParser(file.string().c_str());
+	std::vector<cppParser> finalFileList;
 
-		if (par == nullptr)
+	for(auto& file : fileNames)
+	{
+		if (file.extension() == ".cpp")
 		{
-			std::cout << "Unknown file type: " << file.string() << std::endl;
+			finalFileList.emplace_back(std::move(file));
 		}
-		
-		assert(par->parse(file.string().c_str()));
+		else if (file.extension() == ".sln")
+		{
+			parseSolution(file, finalFileList);
+		}
+		else if (file.extension() == ".vcxproj")
+		{
+			parseVCProj(file, finalFileList);
+		}
 	}
+
+	inja::json data;
+
+	for (auto& file : finalFileList)
+	{
+		bool success = file.parse(data);
+
+		assert(success);
+	}
+
+	std::cout << data.dump(4, ' ') << std::endl;
 
 	return 0;
 }
