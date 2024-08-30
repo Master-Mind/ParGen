@@ -8,39 +8,6 @@
 CXChildVisitResult dumper(CXCursor cursor, CXCursor parent, CXClientData clientData);
 CXChildVisitResult injaConverter(CXCursor cursor, CXCursor parent, CXClientData clientData);
 
-void parseInternal(const std::filesystem::path& filename, inja::json &data) {
-    // Create an index
-    CXIndex index = clang_createIndex(0, 0);
-
-    // Parse the source file and create a translation unit
-    CXTranslationUnit unit = clang_parseTranslationUnit(
-        index,
-        filename.string().c_str(),
-        nullptr, 0,
-        nullptr, 0,
-        CXTranslationUnit_SkipFunctionBodies | CXTranslationUnit_KeepGoing // Skip function bodies
-    );
-
-    if (unit == nullptr) {
-        std::cerr << "Unable to parse translation unit. Quitting." << std::endl;
-        return;
-    }
-
-    // Get the root cursor of the translation unit
-    CXCursor rootCursor = clang_getTranslationUnitCursor(unit);
-
-    // Visit the children of the root cursor
-    clang_visitChildren(
-        rootCursor,
-        injaConverter,
-        &data
-    );
-    
-    // Clean up
-    clang_disposeTranslationUnit(unit);
-    clang_disposeIndex(index);
-}
-
 CXChildVisitResult dumper(CXCursor cursor, CXCursor parent, CXClientData clientData) {
     // Get the kind of the cursor
     CXCursorKind kind = clang_getCursorKind(cursor);
@@ -117,15 +84,48 @@ CXChildVisitResult injaConverter(CXCursor cursor, CXCursor parent, CXClientData 
     return CXChildVisit_Continue;
 }
 
-bool cppParser::parse(inja::json& outdata)
+bool cppParser::parse()
 {
 	std::print("Parsing file: {}\n", _path.string().c_str());
+    // Create an index
+    CXIndex index = clang_createIndex(0, 0);
 
-    parseInternal(_path, outdata);
+    // Parse the source file and create a translation unit
+    unit = clang_parseTranslationUnit(
+        index,
+        _path.string().c_str(),
+        nullptr, 0,
+        nullptr, 0,
+        CXTranslationUnit_SkipFunctionBodies | CXTranslationUnit_KeepGoing // Skip function bodies
+    );
+
+    if (unit == nullptr) {
+        std::cerr << "Unable to parse translation unit. Quitting." << std::endl;
+        return false;
+    }
+
+    clang_disposeIndex(index);
 
 	return true;
 }
 
-cppParser::cppParser(std::filesystem::path&& path, bool isVcpkgEnabled, std::string&& languageStandard) : _path(path)
+void cppParser::fillInData(inja::json& outdata)
+{
+    // Get the root cursor of the translation unit
+    CXCursor rootCursor = clang_getTranslationUnitCursor(unit);
+
+    // Visit the children of the root cursor
+    clang_visitChildren(
+        rootCursor,
+        injaConverter,
+        &outdata
+    );
+
+    // Clean up
+    clang_disposeTranslationUnit(unit);
+}
+
+cppParser::cppParser(std::filesystem::path&& path, bool isVcpkgEnabled, std::string&& languageStandard) : _path(path),
+	unit(nullptr)
 {
 }

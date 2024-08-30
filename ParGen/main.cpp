@@ -2,7 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <print>
-#include <clang-c/Index.h>
+#include <thread>
 #include <argparse/argparse.hpp>
 
 #include "cppParser.h"
@@ -62,11 +62,43 @@ int main(int argc, const char *argv[])
 
 	inja::json data;
 
+	//divvy up the files to multiple threads
+	std::size_t numPerThread = std::thread::hardware_concurrency() > finalFileList.size() ? 1 : finalFileList.size() / std::thread::hardware_concurrency();
+	std::vector<std::thread> threads(std::thread::hardware_concurrency() > finalFileList.size() ? 1 : std::thread::hardware_concurrency());
+	std::vector<cppParser*> threadFiles;
+
+	threadFiles.reserve(numPerThread);
+
+	for (int i = 0; i < finalFileList.size(); )
+	{
+		for ( ;  i < finalFileList.size() && threadFiles.size() < numPerThread; i++)
+		{
+			threadFiles.push_back(&finalFileList[i]);
+		}
+
+		threads.emplace_back([](std::vector<cppParser*> _threadFiles)
+			{
+				for (auto& file : _threadFiles)
+				{
+					bool success = file->parse();
+					assert(success);
+				}
+			}, threadFiles);
+
+		threadFiles.clear();
+	}
+
+	for (auto& thread : threads)
+	{
+		if (thread.joinable())
+		{
+			thread.join();
+		}
+	}
+
 	for (auto& file : finalFileList)
 	{
-		bool success = file.parse(data);
-
-		assert(success);
+		file.fillInData(data);
 	}
 
 	std::cout << data.dump(4, ' ') << std::endl;
