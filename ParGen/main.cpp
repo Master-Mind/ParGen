@@ -4,8 +4,10 @@
 #include <print>
 #include <thread>
 #include <argparse/argparse.hpp>
+#include <yyjson.h>
 
 #include "cppParser.h"
+#include "TemplateParser.h"
 #include "vsParser.h"
 
 int main(int argc, const char *argv[])
@@ -15,6 +17,15 @@ int main(int argc, const char *argv[])
 
     program.add_argument("-f", "--files")
 		.help("Comma delimited list of c++ files and or project files");
+
+	program.add_argument("-t", "--template")
+		.help("The base template to generate code with")
+		.default_value("");
+
+	program.add_argument("-d", "--dump_json")
+		.help("Dump the the ast as json to stdout")
+		.default_value(false)
+		.implicit_value(true);
 
     try
     {
@@ -28,6 +39,7 @@ int main(int argc, const char *argv[])
 	}
 
     std::string files = program.get<std::string>("--files");
+	bool dumpJson = program["--dump_json"] == true;
 
     //walk through the comma delimited list of files and parse them
     std::vector<std::filesystem::path> fileNames;
@@ -59,8 +71,6 @@ int main(int argc, const char *argv[])
 			parseVCProj(file, finalFileList);
 		}
 	}
-
-	inja::json data;
 
 	//divvy up the files to multiple threads
 	std::size_t numPerThread = std::thread::hardware_concurrency() > finalFileList.size() ? 1 : finalFileList.size() / std::thread::hardware_concurrency();
@@ -96,12 +106,39 @@ int main(int argc, const char *argv[])
 		}
 	}
 
+	yyjson_mut_doc* doc = yyjson_mut_doc_new(nullptr);
+	yyjson_mut_val* root = yyjson_mut_obj(doc);
+	yyjson_mut_doc_set_root(doc, root);
+
 	for (auto& file : finalFileList)
 	{
-		file.fillInData(data);
+		file.fillInData(doc, root);
 	}
 
-	std::cout << data.dump(4, ' ') << std::endl;
+	if (dumpJson)
+	{
+		yyjson_write_err err;
+		const char* json = yyjson_mut_write_opts(doc, YYJSON_WRITE_PRETTY, NULL, nullptr, &err);
+
+		if (json)
+		{
+			std::cout << json << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error writing json: " << err.msg << std::endl;
+		}
+	}
+
+	std::string templateFile = program.get<std::string>("--template");
+
+	if (!templateFile.empty())
+	{
+		renderTemplate(templateFile, std::cout, doc);
+	}
+	
+
+	yyjson_mut_doc_free(doc);
 
 	return 0;
 }

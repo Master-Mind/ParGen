@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
-  "name": "vulkan-sandbox",
+  "name": "pargen",
   "version": "0.0.1",
   "dependencies": [
-    "rapidxml",
-	"argparse",
-	"inja"
+	"rapidxml",
+    "yyjson",
+	"argparse"
   ]
 }

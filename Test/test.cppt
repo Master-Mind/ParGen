@@ -1,0 +1,10 @@
+Showing all type info...
+{{foreach class in ClassDecl}}
+	Spelling: {{ class.spelling }}
+	Kind: {{ class.kind }}
+	{{foreach field in FieldDecl}}
+		Spelling: {{ class.spelling }}::{{ field.spelling }}
+		Kind: {{ field.kind }}
+	{{/foreach}}
+{{/foreach}}
+Done showing info

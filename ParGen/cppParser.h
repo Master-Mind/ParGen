@@ -1,8 +1,9 @@
 #pragma once
+#include <filesystem>
 #include <clang-c/Index.h>
 
 #include "fileParser.h"
-#include <inja/inja.hpp>
+#include <yyjson.h>
 
 class cppParser
 {
@@ -11,7 +12,7 @@ public:
 		bool isVcpkgEnabled = false, 
 		std::string&& languageStandard = "c++23");
 	[[nodiscard]] bool parse();
-	void fillInData(inja::json& outdata);
+	void fillInData(yyjson_mut_doc* doc, yyjson_mut_val* outdata);
 
 private:
 	std::filesystem::path _path;
