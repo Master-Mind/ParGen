@@ -19,7 +19,7 @@ Clone the repo, create project files using [premake](https://premake.github.io/)
 Running the following command:
 
 ```
---files ../Test/Test.vcxproj -t ../Test/test.cppt
+ParGen.exe --files ../Test/Test.vcxproj -t ../Test/test.cppt
 ```
 
 After running premake will use this template:
