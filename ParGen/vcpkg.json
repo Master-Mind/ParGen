@@ -5,6 +5,7 @@
   "dependencies": [
 	"rapidxml",
     "yyjson",
-	"argparse"
+	"argparse",
+	"re2"
   ]
 }

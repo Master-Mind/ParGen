@@ -1,5 +1,5 @@
 #pragma once
-class [[ParGen()]] SimpleClass {
+class [[ParGen::Serialize()]] SimpleClass {
 public:
     int field1;
     double field2;
@@ -9,12 +9,12 @@ public:
 };
 
 
-class [[ParGen()]] ConstructorClass {
+class [[ParGen::Serialize()]] ConstructorClass {
 public:
     ConstructorClass(): field1(0), field2(0)
     {
     }
-
+    [[ParGen::Constructor(1,2, {0,1}), ParGen::Reflect()]]
     ConstructorClass(int a, double b) : field1(a), field2(b) {}
     ~ConstructorClass() {}
 
@@ -28,13 +28,13 @@ public:
 	virtual void method() {}
 };
 
-class [[ParGen()]] DerivedClass : public BaseClass {
+class [[ParGen::Serialize()]] DerivedClass : public BaseClass {
 public:
     void method() override {}
 };
 
 template <typename T>
-class [[ParGen()]] TemplateClass {
+class [[ParGen::Serialize()]] TemplateClass {
 public:
     T value;
 
@@ -42,7 +42,7 @@ public:
     void setValue(T newValue) { value = newValue; }
 };
 
-class [[ParGen()]] AccessModifierClass {
+class [[ParGen::Serialize()]] AccessModifierClass {
 private:
     int privateField;
 
@@ -55,7 +55,7 @@ protected:
 public:
     AccessModifierClass(int private_field, int public_field, int protected_field);
 
-protected:
+public:
     void publicMethod() {}
 protected:
     void protectedMethod() {}

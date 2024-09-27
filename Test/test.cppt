@@ -1,10 +1,13 @@
 Showing all type info...
-{{foreach class in ClassDecl}}
+{{foreach class in ClassDecl with ParGen::Serialize | ParGen::Reflect}}
 	Spelling: {{ class.spelling }}
 	Kind: {{ class.kind }}
 	{{foreach field in FieldDecl}}
 		Spelling: {{ class.spelling }}::{{ field.spelling }}
 		Kind: {{ field.kind }}
 	{{/foreach}}
+{{/foreach}}
+{{foreach func in CXXConstructor with ParGen::Constructor\(1,2, .*\)}}
+	Spelling: {{ func.spelling }}
 {{/foreach}}
 Done showing info

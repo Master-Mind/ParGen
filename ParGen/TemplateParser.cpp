@@ -6,6 +6,7 @@
 #include <ranges>
 #include <unordered_map>
 #include <yyjson.h>
+#include <re2/re2.h>
 
 struct templContext
 {
@@ -51,6 +52,68 @@ struct textBlock : templNode
 	std::string_view text;
 };
 
+struct attrpredicate
+{
+	virtual ~attrpredicate() = default;
+	virtual bool operator()(yyjson_mut_val* val) = 0;
+};
+
+struct simplePredicate : attrpredicate
+{
+	simplePredicate(std::string_view str) : regex(str)
+	{
+		assert(regex.ok());
+	}
+
+	bool operator()(yyjson_mut_val* val) override
+	{
+		yyjson_mut_val* attrs = yyjson_mut_obj_get(val, "attributes");
+
+		if (attrs)
+		{
+			yyjson_mut_val* key, * val;
+			yyjson_mut_obj_iter iter;
+			yyjson_mut_obj_iter_init(attrs, &iter);
+			while ((key = yyjson_mut_obj_iter_next(&iter)))
+			{
+				val = yyjson_mut_obj_iter_get_val(key);
+
+				if (RE2::FullMatch(yyjson_mut_get_str(key), regex) || RE2::FullMatch(yyjson_mut_get_str(val), regex))
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	re2::RE2 regex;
+};
+
+struct compoundPredicate : attrpredicate
+{
+	compoundPredicate(attrpredicate* left, attrpredicate* right, bool isOr) : isOr(isOr), left(left), right(right)
+	{
+	}
+
+	bool operator()(yyjson_mut_val* val) override
+	{
+		if (isOr)
+		{
+			return left->operator()(val) || right->operator()(val);
+		}
+		else
+		{
+			return left->operator()(val) && right->operator()(val);
+		}
+	}
+
+	attrpredicate* left;
+	attrpredicate* right;
+	bool isOr;
+};
+
 struct foreachBlock : parentNode
 {
 	foreachBlock(std::string_view iterName, std::string_view seachItem) : seachItem(seachItem), iterName(iterName) {}
@@ -65,13 +128,17 @@ struct foreachBlock : parentNode
 
 	void search(std::ostream& out, yyjson_mut_val* curNode, templContext& context)
 	{
-		yyjson_mut_val* kind = yyjson_mut_obj_get(curNode, "kind");
-		if (kind && yyjson_mut_get_str(kind) == seachItem)
+		if (!predicate || (*predicate)(curNode))
 		{
-			context.variables[iterName] = curNode;
-			//render on the node
-			renderInternal(out, curNode, context);
-			context.variables.erase(iterName);
+			yyjson_mut_val* kind = yyjson_mut_obj_get(curNode, "kind");
+
+			if (kind && yyjson_mut_get_str(kind) == seachItem)
+			{
+				context.variables[iterName] = curNode;
+				//render on the node
+				renderInternal(out, curNode, context);
+				context.variables.erase(iterName);
+			}
 		}
 		
 		//recursively search the children
@@ -101,8 +168,10 @@ struct foreachBlock : parentNode
 
 		search(out, curNode, context);
 	}
+
 	std::string_view seachItem;
 	std::string_view iterName;
+	std::unique_ptr<attrpredicate> predicate;
 };
 
 struct fieldBlock : templNode
@@ -198,9 +267,9 @@ void parse(std::size_t &curpos, parentNode *parent, const std::string_view & tem
 		if (std::string_view(*tokens.begin()) == "foreach"sv)
 		{
 			auto it = tokens.begin();
-			it++;
+			++it;
 			std::string_view iterName(*it);
-			it++;
+			++it;
 
 			if (std::string_view(*it) != "in"sv)
 			{
@@ -208,7 +277,7 @@ void parse(std::size_t &curpos, parentNode *parent, const std::string_view & tem
 				return;
 			}
 
-			it++;
+			++it;
 			std::string_view searchItem(*it);
 
 			foreachBlock* foreach = new foreachBlock{ iterName, searchItem };
@@ -216,7 +285,6 @@ void parse(std::size_t &curpos, parentNode *parent, const std::string_view & tem
 			parent->children.push_back(foreach);
 
 			curpos = end + 2;
-			const yyjson_mut_val* temp;
 
 			if (context.variables.contains(iterName))
 			{
@@ -225,8 +293,78 @@ void parse(std::size_t &curpos, parentNode *parent, const std::string_view & tem
 			}
 			else
 			{
-				//context.variables[iterName] = temp;
+				context.variables[iterName] = nullptr;
 			}
+
+			++it;
+
+			if (it != tokens.end() && std::string_view(*it).size())
+			{
+				std::string_view with(*it);
+				if (with != "with"sv)
+				{
+					std::cerr << "Expected 'with' after foreach variable name\n";
+					return;
+				}
+
+				++it;
+
+				std::string curPred;
+				std::vector<simplePredicate*> predicates;
+				std::vector<bool> ors;
+
+				for (; it != tokens.end(); ++it)
+				{
+					std::string_view temp(*it);
+					if (temp == "|"sv || temp == "&"sv)
+					{
+						if (curPred.empty())
+						{
+							std::cerr << "Empty predicate\n";
+							return;
+						}
+
+						predicates.emplace_back(new simplePredicate(curPred));
+						ors.push_back(temp == "|"sv);
+						curPred.clear();
+					}
+					else
+					{
+						curPred += temp;
+					}
+				}
+
+				if (!curPred.empty())
+				{
+					predicates.emplace_back(new simplePredicate(curPred));
+				}
+				else
+				{
+					std::cerr << "Empty predicate\n";
+					return;
+				}
+
+				if (ors.size())
+				{
+					compoundPredicate* curComp = new compoundPredicate(predicates[0], nullptr, ors[0]);
+
+					foreach->predicate.reset(curComp);
+
+					for (int i = 1; i < ors.size(); i++)
+					{
+						curComp->right = new compoundPredicate(std::move(predicates[i]), nullptr, ors[i]);
+						curComp = dynamic_cast<compoundPredicate*>(curComp->right);
+					}
+
+					curComp->right = predicates[ors.size()];
+				}
+				else
+				{
+					foreach->predicate.reset(predicates[0]);
+				}
+				
+			}
+			
 
 			parse(curpos, foreach, templateData, context);
 

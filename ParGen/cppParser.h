@@ -5,6 +5,8 @@
 #include "fileParser.h"
 #include <yyjson.h>
 
+struct JSONData;
+
 class cppParser
 {
 public:
