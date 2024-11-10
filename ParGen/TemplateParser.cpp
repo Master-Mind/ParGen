@@ -218,6 +218,22 @@ struct fieldBlock : templNode
 		{
 			out << yyjson_mut_get_str(curVal);
 		}
+		else if (yyjson_mut_is_int(curVal))
+		{
+			out << yyjson_mut_get_int(curVal);
+		}
+		else if (yyjson_mut_is_bool(curVal))
+		{
+			out << (yyjson_mut_get_bool(curVal) ? "true" : "false");
+		}
+		else if (yyjson_mut_is_null(curVal))
+		{
+			out << "null";
+		}
+		else
+		{
+			std::cerr << "Invalid field type: " << fieldPath << std::endl;
+		}
 	}
 	std::string_view fieldPath;
 };
@@ -422,7 +438,8 @@ void renderTemplate(const std::filesystem::path& templatePath, std::ostream& out
 
 	parse(curpos, &root, templateData, context);
 
-	root.render(out, yyjson_mut_doc_get_root(doc), context);
-
-	//out << templateData;
+	std::stringstream ss;
+	root.render(ss, yyjson_mut_doc_get_root(doc), context);
+	
+	out << ss.str() << std::endl;
 }

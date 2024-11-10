@@ -136,7 +136,6 @@ int main(int argc, const char *argv[])
 	{
 		renderTemplate(templateFile, std::cout, doc);
 	}
-	
 
 	yyjson_mut_doc_free(doc);
 
