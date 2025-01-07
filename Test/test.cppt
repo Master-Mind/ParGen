@@ -1,0 +1,17 @@
+Showing all type info...
+{{ListUsedIncludes()}}
+{{foreach class in ClassDecl with ParGen::Serialize | ParGen::Reflect}}
+	Spelling: {{ class.spelling }}
+	Kind: {{ class.kind }}
+	{{foreach field in FieldDecl}}
+		Spelling: {{ class.spelling }}::{{ field.spelling }}
+		Kind: {{ field.kind }}
+		{{ if field.access == "public" }}
+			public
+		{{/if}}
+	{{/foreach}}
+{{/foreach}}
+{{foreach func in CXXConstructor with ParGen::Constructor\(1,2, .*\)}}
+	Spelling: {{ func.spelling }}
+{{/foreach}}
+Done showing info
